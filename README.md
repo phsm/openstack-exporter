@@ -1,3 +1,10 @@
+# LEASEWEB Notice
+This repo is forked from [openstack-exporter](https://github.com/openstack-exporter/openstack-exporter).
+
+Additionally it contains a bugfix from a pull-request [573](https://github.com/openstack-exporter/openstack-exporter/pull/573) that is not merged at the moment.
+
+===================================================================
+
 # OpenStack Exporter for Prometheus
 
 [![CI](https://github.com/openstack-exporter/openstack-exporter/actions/workflows/ci.yaml/badge.svg)](https://github.com/openstack-exporter/openstack-exporter/actions/workflows/ci.yaml)
