@@ -52,6 +52,10 @@ jobs:
         run: |
           echo "Contents of /etc/openstack/clouds.yaml:"
           cat /etc/openstack/clouds.yaml || echo "File /etc/openstack/clouds.yaml not found"
+      - name: Display clouds.yaml configuration
+        run: |
+          echo "Contents of /etc/nova/nova.conf:"
+          cat /etc/nova/nova.conf || echo "File /etc/nova/nova.conf not found"
       - name: Run Openstack Integration Tests
         run: bash ./script/integration-suites/placement
         env:
