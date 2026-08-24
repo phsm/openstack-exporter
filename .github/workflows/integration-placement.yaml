@@ -1,4 +1,4 @@
-name: integration-identity
+name: integration-placement
 on:
   pull_request:
   workflow_dispatch:
@@ -7,7 +7,7 @@ permissions:
   contents: read
 
 jobs:
-  integration-identity:
+  integration-placement:
     strategy:
       fail-fast: false
       matrix:
@@ -17,7 +17,7 @@ jobs:
             ubuntu_version: "24.04"
             additional_services: "openstack-cli-server"
     runs-on: ubuntu-${{ matrix.ubuntu_version }}
-    name: Deploy OpenStack ${{ matrix.name }} with Keystone and run identity integration tests
+    name: Deploy OpenStack ${{ matrix.name }} and run Placement integration tests
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -26,6 +26,19 @@ jobs:
         with:
           branch: ${{ matrix.openstack_version }}
           enabled_services: "${{ matrix.additional_services }}"
+          # since the local.conf is parsed as shell script, use it to create an additional config file.
+          conf_overrides: |
+            mkdir -p /etc/nova/provider_config
+            cat > /etc/nova/provider_config/traits.yaml << 'EOF_PROVIDER'
+            meta:
+              schema_version: "1.0"
+            providers:
+            - identification:
+                name: "\$COMPUTE_NODE"
+              traits:
+                additional:
+                - CUSTOM_MY_TRAIT
+            EOF_PROVIDER
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
@@ -34,8 +47,12 @@ jobs:
         run: |
           echo "Contents of /etc/openstack/clouds.yaml:"
           cat /etc/openstack/clouds.yaml || echo "File /etc/openstack/clouds.yaml not found"
+      - name: Display traits.yaml configuration
+        run: |
+          echo "Contents of /etc/nova/provider_config/traits.yaml:"
+          cat /etc/nova/provider_config/traits.yaml || echo "File /etc/nova/provider_config/traits.yaml not found"
       - name: Run Openstack Integration Tests
-        run: bash ./script/integration-suites/identity
+        run: bash ./script/integration-suites/placement
         env:
           DEVSTACK_PATH: ${{ github.workspace }}/devstack
           OS_BRANCH: ${{ matrix.openstack_version }}
@@ -46,5 +63,5 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: integration-identity-${{ matrix.name }}-${{ github.run_id }}
+          name: integration-networking-${{ matrix.name }}-${{ github.run_id }}
           path: /tmp/devstack-logs/*

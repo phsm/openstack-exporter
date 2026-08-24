@@ -2,7 +2,6 @@ package exporters
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 
 	"github.com/gophercloud/gophercloud/v2/openstack/placement/v1/resourceproviders"
@@ -35,6 +34,9 @@ func NewPlacementExporter(config *ExporterConfig, logger *slog.Logger) (*Placeme
 			logger:         logger,
 		},
 	}
+	// Resource provider traits require at least microversion 1.6
+	exporter.ClientV2.Microversion = "1.6"
+
 	for _, metric := range defaultPlacementMetrics {
 		if exporter.isDeprecatedMetric(&metric) {
 			continue
@@ -64,18 +66,15 @@ func ListPlacementResourceProviders(ctx context.Context, exporter *BaseOpenStack
 			return err
 		}
 
-		exporter.ClientV2.Microversion = "1.29"
-		traitsResult, err := resourceproviders.GetTraits(ctx, exporter.ClientV2, resourceprovider.UUID).Extract()
-		if err != nil {
-			return fmt.Errorf("get traits for resource provider %s: %w", resourceprovider.UUID, err)
-		}
-
-		for _, v := range traitsResult.Traits {
-			if !exporter.PlacementProviderTraitRegex.MatchString(v) {
-				continue
+		if traitsResult, err := resourceproviders.GetTraits(ctx, exporter.ClientV2, resourceprovider.UUID).Extract(); err == nil {
+			for _, v := range traitsResult.Traits {
+				if !exporter.PlacementProviderTraitRegex.MatchString(v) {
+					continue
+				}
+				emitPlacementResourceMetric(exporter, ch, "resource_provider_trait", 1, resourceprovider.Name, v)
 			}
-
-			emitPlacementResourceMetric(exporter, ch, "resource_provider_trait", 1, resourceprovider.Name, v)
+		} else {
+			exporter.logger.Error("Could not get resource provider traits list", "resource_provider", resourceprovider.Name, "error", err)
 		}
 
 		for k, v := range inventoryResult.Inventories {

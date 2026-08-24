@@ -125,14 +125,14 @@ Flags:
       --domain-id=DOMAIN-ID      Gather metrics only for the given Domain ID (defaults to all domains)
       --[no-]cache               Enable Cache mechanism globally
       --cache-ttl=300s           TTL duration for cache expiry(eg. 10s, 11m, 1h)
-      --project-id=PROJECT-ID    Gather metrics only for the given Project ID
-                                 (defaults to all projects)
+      --project-id=PROJECT-ID    Gather metrics only for the given Project ID (defaults to all projects)
       --[no-]disable-service-autodetect
-                                 Disable single-cloud service autodetection and
-                                 use only explicit service flags
+                                 Disable single-cloud service autodetection and use only explicit service flags
       --nova.metadata-extra-labels=LABEL=KEY,KEY ...
-                                 Map provided server metadata keys to labels in
-                                 openstack_nova_server_status metric
+                                 Map provided server metadata keys to labels in openstack_nova_server_status metric
+      --dns-concurrent-count=10  Number of concurrent requests for DNS recordset collection
+      --placement-provider-trait-regex=CUSTOM_
+                                 Only report placement resource providers traits matching a regex (default to all traits starting with CUSTOM_)
       --[no-]disable-service.network
                                  Disable the network service exporter in strict mode
       --[no-]disable-service.compute
@@ -163,12 +163,9 @@ Flags:
                                  Disable the placement service exporter in strict mode
       --[no-]disable-service.sharev2
                                  Disable the sharev2 service exporter in strict mode
-      --[no-]web.systemd-socket  Use systemd socket activation listeners instead of port listeners (Linux only).
       --web.listen-address=:9180 ...
-                                 Addresses on which to expose metrics and web interface. Repeatable for multiple addresses.
-                                 Examples: `:9100` or `[::1]:9100` for http, `vsock://:9100` for vsock
-      --web.config.file=""       Path to configuration file that can enable TLS or authentication. See:
-                                 https://github.com/prometheus/exporter-toolkit/blob/master/docs/web-configuration.md
+                                 Addresses on which to expose metrics and web interface. Repeatable for multiple addresses. Examples: `:9100` or `[::1]:9100` for http, `vsock://:9100` for vsock
+      --web.config.file=""       Path to configuration file that can enable TLS or authentication. See: https://github.com/prometheus/exporter-toolkit/blob/master/docs/web-configuration.md
       --log.level=info           Only log messages with the given severity or above. One of: [debug, info, warn, error]
       --log.format=logfmt        Output format of log messages. One of: [logfmt, json]
       --[no-]version             Show application version.
@@ -293,6 +290,29 @@ Enabling the cache with `--cache` changes the exporter's metric collection and d
 * Returns no data if the cache is empty or expired.
 * Retrieves and returns cached data from the backend.
 
+### Placement 10000-resource-provider benchmark
+
+The Placement benchmarks simulate 10000 resource providers with inventories, usages, and
+allocations in a local mock Placement API. They are intended to measure exporter overhead
+without requiring a large OpenStack deployment.
+
+```sh
+mkdir -p ./env/go-build-cache
+GOCACHE="$(pwd)/env/go-build-cache" go test ./exporters -bench 'BenchmarkPlacement.*10000' -benchmem -run '^$'
+```
+
+Use these benchmarks before and after Placement collector changes:
+
+* `BenchmarkPlacementListResourceProviders10000` measures the direct Placement collection path.
+* `BenchmarkPlacementCollectCold10000` measures full Prometheus gather cost from a fresh exporter.
+* `BenchmarkPlacementCollectWarm10000` measures repeated gather cost and shows the effect of
+  any Placement collector cache that reuses resource provider API results.
+* `BenchmarkPlacementCacheWrite10000` measures the existing exporter response cache by writing
+  already gathered metric families to an HTTP response.
+
+Set `PLACEMENT_BENCH_REQUEST_DELAY_MS` to a non-negative integer to add per-request mock API
+latency when modeling slower Placement servers.
+
 ## Contributing
 
 Please file pull requests or issues under GitHub. Feel free to request any metrics
@@ -336,6 +356,7 @@ limits_backup_max_gb | cinder
 limits_backup_used_gb | cinder
 image_bytes | glance
 image_created_at | glance
+resource_provider_trait | placement
 
 #### Deprecated Metrics
 
@@ -348,12 +369,15 @@ openstack_cinder_volume_status | 1.4 | 1.5 | deprecated in favor of openstack_ci
 Name     | Sample Labels                                                                                                                                                                                                                                                                                                         | Sample Value | Description
 ---------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------|------------
 openstack_cinder_agent_state| adminState="enabled",disabledReason="",hostname="devstack@lvmdriver-1",service="cinder-volume",uuid="3649e0f6-de80-ab6e-4f1c-351042d2f7fe",zone="nova"                                                                                                                                                                      |1.0 or 0 (bool)| Agent state (1=up, 0=down)
+openstack_cinder_backup_gb| id="2ef47aee-8844-490c-804d-2a8efe561c65",incremental="false",name="test-volume-backup",snapshot_id="",status="available",tenant_id="bab7d5c60cd041a0a36f7c4b6e1dd978",volume_id="173f7b48-c4c1-4e70-9acc-086b39073506"|1.0 (float)| Backup size in GB
+openstack_cinder_backups| region="RegionOne"|4.0 (float)| Total number of backups
 openstack_cinder_limits_backup_max_gb| tenant="demo-project",tenant_id="0c4e939acacf4376bdcd1129f1a054ad"                                                                                                                                                                                                                                                    |1000.0 (float)| Maximum backup size limit
 openstack_cinder_limits_backup_used_gb| tenant="demo-project",tenant_id="0c4e939acacf4376bdcd1129f1a054ad"                                                                                                                                                                                                                                                    |0.0 (float)| Used backup size
 openstack_cinder_limits_volume_max_gb| tenant="demo-project",tenant_id="0c4e939acacf4376bdcd1129f1a054ad"                                                                                                                                                                                                                                                    |40000.0 (float)| Maximum volume size limit
 openstack_cinder_limits_volume_used_gb| tenant="demo-project",tenant_id="0c4e939acacf4376bdcd1129f1a054ad"                                                                                                                                                                                                                                                    |40000.0 (float)| Used volume size
 openstack_cinder_pool_capacity_free_gb| name="i666testhost@FastPool01",vendor_name="EMC",volume_backend_name="VNX_Pool"                                                                                                                                                                                                                                             |636.316 (float)| Pool free capacity in GB
 openstack_cinder_pool_capacity_total_gb| name="i666testhost@FastPool01",vendor_name="EMC",volume_backend_name="VNX_Pool"                                                                                                                                                                                                                                            |1692.429 (float)| Pool total capacity in GB
+openstack_cinder_snapshot_gb| id="b1323cda-8e4b-41c1-afc5-2fc791809c8c",name="test-volume-snapshot",status="available",tenant_id="bab7d5c60cd041a0a36f7c4b6e1dd978",volume_id="173f7b48-c4c1-4e70-9acc-086b39073506"|1.0 (float)| Snapshot size in GB
 openstack_cinder_snapshots| region="RegionOne"                                                                                                                                                                                                                                                                                                    |4.0 (float)| Total number of snapshots
 openstack_cinder_up| region="RegionOne"                                                                                                                                                                                                                                                                                                           |1.0 (float)| Service status (1=up, 0=down)
 openstack_cinder_volume_gb| region="RegionOne",availability_zone="nova",bootable="true",id="173f7b48-c4c1-4e70-9acc-086b39073506",name="test-volume",status="available",tenant_id="bab7d5c60cd041a0a36f7c4b6e1dd978",user_id="32779452fcd34ae1a53a797ac8a1e064",volume_type="lvmdriver-1",server_id="f4fda93b-06e0-4743-8117-bc8bcecd651b"        |4.0 (float)| Volume size in GB
@@ -372,8 +396,8 @@ openstack_designate_up| region="RegionOne"                                      
 openstack_designate_zone_status| region="RegionOne",id="a86dba58-0043-4cc6-a1bb-69d5e86f3ca3",name="example.org.",status="ACTIVE",tenant_id="4335d1f0-f793-11e2-b778-0800200c9a66",type="PRIMARY"                                                                                                                                                      |4.0 (float)| DNS zone status
 openstack_designate_zones| region="RegionOne"                                                                                                                                                                                                                                                                                                    |4.0 (float)| Total number of DNS zones
 openstack_exporter_build_info| version="v2.0.0",revision="99599d6eb019d476ed0e73f7b144cc04fa56523b"                                                                                                                                                                                                                                                   |1.0 (float)| A metric with a constant '1' value labeled by version and revision from which openstack-exporter was built
-openstack_glance_image_bytes| id="1bea47ed-f6a9-463b-b423-14b9cca9ad27",name="cirros-0.3.2-x86_64-disk",tenant_id="5ef70662f8b34079a6eddb8da9d75fe8"                                                                                                                                                                                                |1.3167616e+07 (float)| Image size in bytes
-openstack_glance_image_created_at| hidden="false",id="1bea47ed-f6a9-463b-b423-14b9cca9ad27",name="cirros-0.3.2-x86_64-disk",status="active",tenant_id="5ef70662f8b34079a6eddb8da9d75fe8",visibility="public"                                                                                                                                                                       | 1.415380026e+09| Image creation timestamp
+openstack_glance_image_bytes| id="1bea47ed-f6a9-463b-b423-14b9cca9ad27",image_type="image",name="cirros-0.3.2-x86_64-disk",tenant_id="5ef70662f8b34079a6eddb8da9d75fe8"                                                                                                                                                                                                |1.3167616e+07 (float)| Image size in bytes
+openstack_glance_image_created_at| hidden="false",id="1bea47ed-f6a9-463b-b423-14b9cca9ad27",image_type="image",name="cirros-0.3.2-x86_64-disk",status="active",tenant_id="5ef70662f8b34079a6eddb8da9d75fe8",visibility="public"                                                                                                                                                                       | 1.415380026e+09| Image creation timestamp
 openstack_glance_images| region="Region"                                                                                                                                                                                                                                                                                                       |1.0 (float)| Total number of images
 openstack_glance_up| region="RegionOne"                                                                                                                                                                                                                                                                                                               |1.0 (float)| Service status (1=up, 0=down)
 openstack_gnocchi_status_measures_to_process| region="RegionOne"                                                                                                                                                                                                                                                                                   |291.0 (float)| Number of measures to process
@@ -473,7 +497,7 @@ openstack_nova_quota_security_group_rules|tenant="admin",type="in_use"          
 openstack_nova_quota_security_groups|tenant="admin",type="in_use"                                                                                                                                                                                                                                                                      |1 (float)|Current usage of security groups for the tenant
 openstack_nova_quota_server_group_members|tenant="admin",type="in_use"                                                                                                                                                                                                                                                            |1 (float)|Current usage of server group members for the tenant
 openstack_nova_quota_server_groups|tenant="admin",type="in_use"                                                                                                                                                                                                                                                                          |1 (float)|Current usage of server groups for the tenant
-openstack_nova_running_vms| region="RegionOne",hostname="compute-01",availability_zone="az1",aggregates="shared,ssd"                                                                                                                                                                                                                              |12.0 (float)| Number of running VMs
+openstack_nova_running_vms| region="RegionOne",hostname="compute-01",availability_zone="az1",aggregates="shared,ssd",tenant_id="tenant_id"                                                                                                                                                                                                         |12.0 (float)| Number of running VMs
 openstack_nova_security_groups| region="RegionOne"                                                                                                                                                                                                                                                                                                      |1.0 (float)| Total number of security groups
 openstack_nova_server_local_gb| id="27bb2854-b06a-48f5-ab4e-139817b8b8ff",name="openstack-monitoring-0",tenant_id="110f6313d2d346b4aa90eabe4970b62a"                                                                                                                                                                                                 | 10 (float)| Server local disk size
 openstack_nova_server_status| region="RegionOne",hostname="compute-01",id="id",name="name",tenant_id="tenant_id",user_id="user_id",address_ipv4="address_ipv4",address_ipv6="address_ipv6",host_id="host_id",uuid="uuid",availability_zone="availability_zone"                                                                                             |0.0 (float)| Server status
@@ -488,6 +512,7 @@ openstack_placement_resource_allocation_ratio| hostname="compute-01",resourcetyp
 openstack_placement_resource_generation| hostname="compute-01",resourcetype="DISK_GB\|PCPU\|VCPU\|..."                                                                                                                                                                                                                                                           |20 (float)| Placement resource provider generation for this resource type
 openstack_placement_resource_reserved| hostname="compute-01",resourcetype="DISK_GB\|PCPU\|VCPU\|..."                                                                                                                                                                                                                                                           |8 (float)| Reserved resources
 openstack_placement_resource_total| hostname="compute-01",resourcetype="DISK_GB\|PCPU\|VCPU\|..."                                                                                                                                                                                                                                                           |80 (float)| Total resources
+openstack_placement_resource_provider_traits| hostname="compute-01", trait="TRAIT_NAME"                                                                                                                                                                                                                                                             |1.0 (float)| Resource trait informational metric, one metric per hostname + trait
 openstack_placement_resource_usage| hostname="compute-01",resourcetype="DISK_GB\|PCPU\|VCPU\|..."                                                                                                                                                                                                                                                           |40 (float)| Used resources
 openstack_placement_up| region="RegionOne"                                                                                                                                                                                                                                                                                                            |1.0 (float)| Service status (1=up, 0=down)
 openstack_sharev2_share_gb| availability_zone="az1",id="4be93e2e-ffff-ffff-ffff-603e3ec2a5d6",name="share-test",project_id="ffff8fa0ca1a468db8ad00970c1effff",share_proto="NFS",share_type="az1",share_type_name="",status="available"                                                                                                                        |1.0 (float)| Share size in GB
