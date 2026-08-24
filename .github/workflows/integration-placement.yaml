@@ -23,8 +23,8 @@ jobs:
         uses: actions/checkout@v7
       - name: Create traits.yaml
         run: |
-          mkdir -p /tmp/provider_config
-          tee /tmp/provider_config/traits.yaml << EOF
+          sudo mkdir -p /etc/nova/provider_config
+          sudo tee /etc/nova/provider_config/traits.yaml << EOF
           meta:
             schema_version: "1.0"
           providers:
@@ -39,11 +39,6 @@ jobs:
         with:
           branch: ${{ matrix.openstack_version }}
           enabled_services: "${{ matrix.additional_services }}"
-          # since the local.conf is parsed as shell script, use it to create an additional config file.
-          conf_overrides: |
-            [[post-config|$NOVA_CONF]]
-            [compute]
-            provider_config_location = /tmp/provider_config/
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
@@ -55,7 +50,7 @@ jobs:
       - name: Display clouds.yaml configuration
         run: |
           echo "Contents of /etc/nova/nova.conf:"
-          cat /etc/nova/nova.conf || echo "File /etc/nova/nova.conf not found"
+          cat /etc/nova/provider_config/traits.yaml || echo "File /etc/nova/provider_config/traits.yaml not found"
       - name: Run Openstack Integration Tests
         run: bash ./script/integration-suites/placement
         env:
