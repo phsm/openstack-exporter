@@ -14,7 +14,7 @@ func TestPlacementIntegration(t *testing.T) {
 	metrics := scrapeLoggedMetrics(t, "")
 
 	t.Run("openstack_placement_up_metric", func(t *testing.T) {
-		metrics.requireUp(t, "openstack_placement_up_metric")
+		metrics.requireUp(t, "openstack_placement_up")
 	})
 
 	t.Run("openstack_placement_core_metrics_present", func(t *testing.T) {
