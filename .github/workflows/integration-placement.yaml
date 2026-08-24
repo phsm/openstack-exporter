@@ -21,6 +21,19 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+      - name: Create traits.yaml
+        run: |
+          mkdir -p /tmp/provider_config
+          tee /tmp/provider_config/traits.yaml << EOF
+          meta:
+            schema_version: "1.0"
+          providers:
+          - identification:
+              name: "\$COMPUTE_NODE"
+            traits:
+              additional:
+              - CUSTOM_MY_TRAIT
+          EOF
       - name: Deploy devstack
         uses: gophercloud/devstack-action@60ca1042045c0c9e3e001c64575d381654ffcba1
         with:
@@ -31,18 +44,6 @@ jobs:
             [[post-config|$NOVA_CONF]]
             [compute]
             provider_config_location = /tmp/provider_config/
-
-            mkdir -p /tmp/provider_config
-            cat > /tmp/provider_config/traits.yaml << 'EOF_PROVIDER'
-            meta:
-              schema_version: "1.0"
-            providers:
-            - identification:
-                name: "\$COMPUTE_NODE"
-              traits:
-                additional:
-                - CUSTOM_MY_TRAIT
-            EOF_PROVIDER
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
@@ -51,10 +52,6 @@ jobs:
         run: |
           echo "Contents of /etc/openstack/clouds.yaml:"
           cat /etc/openstack/clouds.yaml || echo "File /etc/openstack/clouds.yaml not found"
-      - name: Display traits.yaml configuration
-        run: |
-          echo "Contents of traits.yaml:"
-          cat /tmp/provider_config/traits.yaml || echo "File /tmp/provider_config/traits.yaml not found"
       - name: Run Openstack Integration Tests
         run: bash ./script/integration-suites/placement
         env:
