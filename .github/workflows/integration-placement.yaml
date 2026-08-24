@@ -28,8 +28,12 @@ jobs:
           enabled_services: "${{ matrix.additional_services }}"
           # since the local.conf is parsed as shell script, use it to create an additional config file.
           conf_overrides: |
-            mkdir -p /etc/nova/provider_config
-            cat > /etc/nova/provider_config/traits.yaml << 'EOF_PROVIDER'
+            [[post-config|\$NOVA_CONF]]
+            [compute]
+            provider_config_location = $PWD/provider_config/
+
+            mkdir -p $PWD/provider_config/
+            cat > $PWD/provider_config//traits.yaml << 'EOF_PROVIDER'
             meta:
               schema_version: "1.0"
             providers:
@@ -49,8 +53,8 @@ jobs:
           cat /etc/openstack/clouds.yaml || echo "File /etc/openstack/clouds.yaml not found"
       - name: Display traits.yaml configuration
         run: |
-          echo "Contents of /etc/nova/provider_config/traits.yaml:"
-          cat /etc/nova/provider_config/traits.yaml || echo "File /etc/nova/provider_config/traits.yaml not found"
+          echo "Contents of traits.yaml:"
+          cat $PWD/provider_config//traits.yaml || echo "File $PWD/provider_config//traits.yaml not found"
       - name: Run Openstack Integration Tests
         run: bash ./script/integration-suites/placement
         env:
